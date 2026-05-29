@@ -1,0 +1,239 @@
+package main
+
+import (
+	"fmt"
+	"strconv"
+	"unicode"
+)
+
+type Token struct {
+	ttype   TokenType
+	lexeme  string
+	literal any
+	line    int
+}
+
+var keywords = map[string]TokenType{
+	"and":    AND,
+	"class":  CLASS,
+	"else":   ELSE,
+	"false":  FALSE,
+	"for":    FOR,
+	"fun":    FUN,
+	"if":     IF,
+	"nil":    NIL,
+	"or":     OR,
+	"print":  PRINT,
+	"return": RETURN,
+	"super":  SUPER,
+	"this":   THIS,
+	"true":   TRUE,
+	"var":    VAR,
+	"while":  WHILE,
+}
+
+type Scanner struct {
+	source  string
+	Tokens  []Token
+	start   int
+	current int
+	line    int
+	glox    *Glox
+}
+
+func ScannerInit(source string, glox *Glox) Scanner {
+	sc := Scanner{source, []Token{}, 0, 0, 0, glox}
+	return sc
+}
+
+// If is an in-home ternary operator because go is too clean to have a turnary operator
+func If[T any](cond bool, trueVal, falseVal T) T {
+	if cond {
+		return trueVal
+	}
+	return falseVal
+}
+
+func (e Token) String() string {
+	return fmt.Sprintf("%v %s %v", e.ttype, e.lexeme, e.literal)
+}
+
+func (e *Scanner) addToken(ttype TokenType) {
+	e.addTokenliteral(ttype, nil)
+}
+
+func (e *Scanner) addTokenliteral(ttype TokenType, literal any) {
+	lexeme := e.source[e.start:e.current]
+	token := Token{ttype, lexeme, literal, e.line}
+	e.Tokens = append(e.Tokens, token)
+}
+
+func (e *Scanner) ScanTokens() []Token {
+	for !e.isAtEnd() {
+		e.start = e.current
+		e.scanToken()
+	}
+	e.Tokens = append(e.Tokens, Token{EOF, "", nil, e.line})
+	return e.Tokens
+}
+
+func (e *Scanner) scanToken() {
+	c := e.advance()
+
+	switch c {
+	case ';':
+		e.addToken(SEMICOLON)
+	case '(':
+		e.addToken(LEFT_PAREN)
+	case ')':
+		e.addToken(RIGHT_PAREN)
+	case '{':
+		e.addToken(LEFT_BRACE)
+	case '}':
+		e.addToken(RIGHT_BRACE)
+	case ',':
+		e.addToken(COMMA)
+	case '.':
+		e.addToken(DOT)
+	case '+':
+		e.addToken(PLUS)
+	case '-':
+		e.addToken(MINUS)
+	case '*':
+		e.addToken(STAR)
+	case '!':
+		e.addToken(If(e.match('='), BANG_EQUAL, BANG))
+	case '=':
+		e.addToken(If(e.match('='), EQUAL_EQUAL, EQUAL))
+	case '<':
+		e.addToken(If(e.match('='), LESS_EQUAL, LESS))
+	case '>':
+		e.addToken(If(e.match('='), GREATER_EQUAL, GREATER))
+	case '/':
+		if e.match('/') {
+			for e.peek() != '\n' && !e.isAtEnd() {
+				e.advance()
+			}
+		} else {
+			e.addToken(SLASH)
+		}
+
+	case ' ':
+	case '\r':
+	case '\t':
+	case '\n':
+		e.line++
+
+	case '"':
+		e.setString()
+	default:
+		if unicode.IsDigit(rune(c)) {
+			e.setNumber()
+		} else if e.isAlpha(c) {
+			e.setIdentifier()
+		} else {
+			e.glox.error(e.line, "Unexpected charater.")
+		}
+	}
+}
+
+func (e *Scanner) isAlpha(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+}
+
+func (e *Scanner) isAlphaNumeric(c byte) bool {
+	return e.isAlpha(c) || unicode.IsDigit(rune(c))
+}
+
+func (e *Scanner) setIdentifier() {
+	for e.isAlphaNumeric(e.peek()) {
+		e.advance()
+	}
+	word := e.source[e.start:e.current]
+	ttype, ok := keywords[word]
+
+	if ok {
+		e.addToken(ttype)
+		return
+	}
+
+	e.addToken(IDENTIFIER)
+}
+
+func (e *Scanner) setNumber() {
+	for unicode.IsDigit(rune(e.peek())) {
+		e.advance()
+	}
+
+	if e.peek() == '.' && unicode.IsDigit(rune(e.peekNext())) {
+		e.advance()
+		for unicode.IsDigit(rune(e.peek())) {
+			e.advance()
+		}
+	}
+
+	val, err := strconv.ParseInt(e.source[e.start:e.current], 10, 64)
+	if err != nil {
+		e.glox.error(e.line, fmt.Sprintf("Error while parsing number. %v", err))
+	}
+	e.addTokenliteral(NUMBER, val)
+}
+
+func (e *Scanner) peekNext() byte {
+	if (e.current + 1) >= len(e.source) {
+		return 0
+	}
+	return e.source[e.current+1]
+}
+
+func (e *Scanner) setString() {
+	for e.peek() != '"' && !e.isAtEnd() {
+		if e.peek() == '\n' {
+			e.line++
+		}
+		e.advance()
+	}
+	if e.isAtEnd() {
+		e.glox.error(e.line, "Unterminated string.")
+		return
+	}
+
+	e.advance()                                  // consumes the second "
+	literal := e.source[e.start+1 : e.current-1] // after the first " and before the second "
+	e.addTokenliteral(STRING, literal)
+}
+
+func (e *Scanner) peek() byte {
+	if e.isAtEnd() {
+		return 0
+	}
+	return e.source[e.current]
+}
+
+// conditional advance
+func (e *Scanner) match(expected byte) bool {
+	if e.isAtEnd() || (e.source[e.current] != expected) {
+		return false
+	}
+
+	// consume
+	e.current++
+	return true
+}
+
+func (e Scanner) isAtEnd() bool {
+	// as long as we don't plan supporting non ascii charachters in the language
+	// using golang's `string` instead of `rune` is a great time saver and will make the scanner simpler and faster.
+	// we might need to revisit this later though.
+
+	if e.current >= len(e.source) {
+		return true
+	}
+
+	return false
+}
+
+func (e *Scanner) advance() byte {
+	e.current++
+	return e.source[e.current-1]
+}
