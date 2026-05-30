@@ -57,7 +57,7 @@ func GloxInit() Glox {
 	if len(os.Args) > 2 {
 		fmt.Println("Usage: Glox [script]")
 		os.Exit(64) // https://gist.github.com/bojanrajkovic/831993 line 100.
-	} else if len(os.Args) > 2 {
+	} else if len(os.Args) == 2 {
 		glox.runFile(os.Args[1])
 	} else {
 		glox.runPrompt()

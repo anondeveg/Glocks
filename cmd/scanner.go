@@ -32,6 +32,8 @@ var keywords = map[string]TokenType{
 	"while":  WHILE,
 }
 
+// TODO add a mechanism to group errors together after parsing has been finished. SEE:4.5.1 aside text p47
+
 type Scanner struct {
 	source  string
 	Tokens  []Token
@@ -42,7 +44,7 @@ type Scanner struct {
 }
 
 func ScannerInit(source string, glox *Glox) Scanner {
-	sc := Scanner{source, []Token{}, 0, 0, 0, glox}
+	sc := Scanner{source, []Token{}, 0, 0, 1, glox}
 	return sc
 }
 
@@ -55,7 +57,10 @@ func If[T any](cond bool, trueVal, falseVal T) T {
 }
 
 func (e Token) String() string {
-	return fmt.Sprintf("%v %s %v", e.ttype, e.lexeme, e.literal)
+	if e.ttype == 38 {
+		return fmt.Sprintf("EOF(%v)", e.ttype)
+	}
+	return fmt.Sprintf("tokentype : %v  lexeme: %s literal: %v\n", e.ttype, e.lexeme, e.literal)
 }
 
 func (e *Scanner) addToken(ttype TokenType) {
@@ -114,6 +119,8 @@ func (e *Scanner) scanToken() {
 			for e.peek() != '\n' && !e.isAtEnd() {
 				e.advance()
 			}
+		} else if e.match('*') { // multi-line comment
+			e.multiLineComment()
 		} else {
 			e.addToken(SLASH)
 		}
@@ -134,6 +141,28 @@ func (e *Scanner) scanToken() {
 		} else {
 			e.glox.error(e.line, "Unexpected charater.")
 		}
+	}
+}
+
+func (e *Scanner) multiLineComment() {
+	for !e.isAtEnd() {
+		if e.peek() == '\n' {
+			e.line++
+			e.advance()
+		}
+
+		if e.peek() == '*' && e.peekNext() == '/' { // end of multiline
+			e.advance()
+			e.advance()
+			return
+		}
+		if e.peek() == '/' && e.peekNext() == '*' { // nested multiline
+			e.advance()
+			e.multiLineComment()
+		} else {
+			e.advance()
+		}
+
 	}
 }
 
@@ -172,7 +201,7 @@ func (e *Scanner) setNumber() {
 		}
 	}
 
-	val, err := strconv.ParseInt(e.source[e.start:e.current], 10, 64)
+	val, err := strconv.ParseFloat(e.source[e.start:e.current], 64)
 	if err != nil {
 		e.glox.error(e.line, fmt.Sprintf("Error while parsing number. %v", err))
 	}
@@ -197,7 +226,6 @@ func (e *Scanner) setString() {
 		e.glox.error(e.line, "Unterminated string.")
 		return
 	}
-
 	e.advance()                                  // consumes the second "
 	literal := e.source[e.start+1 : e.current-1] // after the first " and before the second "
 	e.addTokenliteral(STRING, literal)
