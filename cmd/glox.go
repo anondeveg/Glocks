@@ -44,10 +44,15 @@ func (e Glox) runPrompt() {
 	}
 }
 
-func (e Glox) run(source string) error {
-	sc := ScannerInit(source, &e)
+func (e *Glox) run(source string) error {
+	sc := ScannerInit(source, e)
 	tokens := sc.ScanTokens()
-	fmt.Println(tokens)
+	parser := Parser{e, 0, tokens}
+	AST := parser.parse()
+	printer := AstPrinter{}
+	fmt.Printf("AST: %v\n", AST.accept(&printer))
+	fmt.Printf("RPN NOTATION: %v", AST.accept(&Rpn{}))
+
 	return nil
 }
 

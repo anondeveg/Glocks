@@ -1,3 +1,4 @@
+// this was an excersice for chapter 5 and is no longer updated to the current version of the parser :) please do not run.
 package main
 
 import "fmt"
