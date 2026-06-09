@@ -10,7 +10,7 @@ following [craftinginterpreters by Robert Nystrom](https://craftinginterpreters.
 - [x] Chapter 4: Scanning
 - [x] Chapter 5: Representing Code
 - [x] Chapter 6: Parsing Expressions
-- [ ] Chapter 7: Evaluating Expressions
+- [x] Chapter 7: Evaluating Expressions
 - [ ] Chapter 8: Statements and State
 - [ ] Chapter 9: Control Flow
 - [ ] Chapter 10: Functions
