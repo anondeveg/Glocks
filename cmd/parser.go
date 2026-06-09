@@ -1,14 +1,14 @@
 package main
 
 type Expr interface {
-	accept(Visitor) any
+	accept(Visitor) (any, error)
 }
 
 type Visitor interface {
-	visitBinary(b *Binary) any
-	visitLiteral(l *Literal) any
-	visitGrouping(g *Grouping) any
-	visitUnary(u *Unary) any
+	visitBinary(b *Binary) (any, error)
+	visitLiteral(l *Literal) (any, error)
+	visitGrouping(g *Grouping) (any, error)
+	visitUnary(u *Unary) (any, error)
 }
 
 type Binary struct {
@@ -17,7 +17,7 @@ type Binary struct {
 	right    Expr
 }
 
-func (b *Binary) accept(v Visitor) any {
+func (b *Binary) accept(v Visitor) (any, error) {
 	return v.visitBinary(b)
 }
 
@@ -25,7 +25,7 @@ type Literal struct {
 	value any
 }
 
-func (l *Literal) accept(v Visitor) any {
+func (l *Literal) accept(v Visitor) (any, error) {
 	return v.visitLiteral(l)
 }
 
@@ -33,7 +33,7 @@ type Grouping struct {
 	groupedExpression Expr
 }
 
-func (g *Grouping) accept(v Visitor) any {
+func (g *Grouping) accept(v Visitor) (any, error) {
 	return v.visitGrouping(g)
 }
 
@@ -42,7 +42,7 @@ type Unary struct {
 	right    Expr
 }
 
-func (u *Unary) accept(v Visitor) any {
+func (u *Unary) accept(v Visitor) (any, error) {
 	return v.visitUnary(u)
 }
 
@@ -162,10 +162,10 @@ func (p *Parser) primary() Expr {
 		p.consume(RIGHT_PAREN, "Expect ')' aftrer expression")
 		return &Grouping{expr}
 	default:
-		p.glox.error(p.peek().line, "Expected 'false','true','nil',Number,String, or '('")
+		p.glox.error(p.peek().line, "Unexpected value")
 	}
 
-	return &Literal{nil} // dead code
+	return &Literal{nil}
 }
 
 func (p *Parser) consume(ttype TokenType, message string) {
